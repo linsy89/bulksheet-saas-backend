@@ -443,6 +443,13 @@ async def generate_attributes(concept: str) -> List[Dict[str, any]]:
 """
 
     try:
+        # 检查环境变量
+        if not DEEPSEEK_API_KEY:
+            print("❌ 错误：DEEPSEEK_API_KEY 未配置")
+            return get_fallback_attributes(concept)
+
+        print(f"🔵 调用 DeepSeek API，概念: {concept}")
+
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{DEEPSEEK_API_BASE}/chat/completions",
@@ -461,9 +468,14 @@ async def generate_attributes(concept: str) -> List[Dict[str, any]]:
                 },
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as response:
+                print(f"🔵 DeepSeek API 响应状态码: {response.status}")
+
                 if response.status == 200:
                     data = await response.json()
+                    print(f"🔵 API 返回数据结构: {list(data.keys())}")
+
                     content = data["choices"][0]["message"]["content"]
+                    print(f"🔵 AI 返回内容前100字符: {content[:100]}...")
 
                     # 解析JSON（去除markdown代码块）
                     import json
@@ -472,8 +484,12 @@ async def generate_attributes(concept: str) -> List[Dict[str, any]]:
                     json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
                     if json_match:
                         content = json_match.group(1)
+                        print(f"🔵 提取JSON代码块成功")
+                    else:
+                        print(f"⚠️  未找到JSON代码块，直接解析内容")
 
                     attributes = json.loads(content)
+                    print(f"✅ 成功解析JSON，属性词数量: {len(attributes)}")
 
                     # 返回完整的8字段结构
                     # 新格式包含: 序号, 原始属性词概念, 属性词, 词汇类型,
@@ -481,10 +497,14 @@ async def generate_attributes(concept: str) -> List[Dict[str, any]]:
                     return attributes
                 else:
                     # API调用失败，返回备用结果
+                    error_text = await response.text()
+                    print(f"❌ API返回错误状态码 {response.status}: {error_text[:200]}")
                     return get_fallback_attributes(concept)
 
     except Exception as e:
-        print(f"DeepSeek API错误: {e}")
+        import traceback
+        print(f"❌ DeepSeek API错误: {type(e).__name__}: {str(e)}")
+        print(f"❌ 错误堆栈: {traceback.format_exc()}")
         return get_fallback_attributes(concept)
 
 

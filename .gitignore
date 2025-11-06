@@ -54,3 +54,8 @@ Thumbs.db
 
 # Documentation archive (local only)
 docs_archive/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3

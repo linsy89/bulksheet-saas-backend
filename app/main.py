@@ -3,8 +3,9 @@ Bulksheet SaaS - Minimal FastAPI Application
 采用TDD方式，从最简单的功能开始
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 from typing import Dict, List
 from datetime import datetime
 import uuid
@@ -15,8 +16,20 @@ from app.models import (
     AttributeWord,
     AttributeMetadata
 )
+from app.schemas.stage2 import (
+    TaskDetailResponse,
+    UpdateSelectionRequest,
+    UpdateSelectionResponse,
+    AttributeWithSelection,
+    TaskMetadata,
+    UpdateSelectionMetadata,
+    SelectionChanges
+)
 from app.config import load_prompt, load_ai_config
 from app.services.deepseek_provider import DeepSeekProvider
+from app.database import get_db, init_db
+from app.crud import task as crud_task
+from app.crud import attribute as crud_attribute
 
 app = FastAPI(
     title="Bulksheet SaaS",
@@ -39,6 +52,13 @@ provider_config = ai_config["providers"][active_provider]
 ai_service = DeepSeekProvider(config=provider_config, prompt_template=prompt_template)
 
 print(f"✅ AI 服务已初始化: {active_provider}, 提示词版本: {prompt_version}")
+
+# ============ 数据库初始化 ============
+
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时初始化数据库"""
+    init_db()
 
 # ============ CORS 配置 ============
 
@@ -159,7 +179,10 @@ def generate_metadata(attributes: List[AttributeWord]) -> AttributeMetadata:
 # ============ Stage 1: 属性词生成 ============
 
 @app.post("/api/stage1/generate", response_model=AttributeResponse)
-async def generate_attribute_candidates(request: AttributeRequest):
+async def generate_attribute_candidates(
+    request: AttributeRequest,
+    db: Session = Depends(get_db)
+):
     """
     Stage 1: 生成属性词候选
 
@@ -190,6 +213,34 @@ async def generate_attribute_candidates(request: AttributeRequest):
         # 生成任务ID（用于后续阶段跟踪）
         task_id = str(uuid.uuid4())
 
+        # ============ 新增：保存到数据库 ============
+        try:
+            # 创建任务记录
+            crud_task.create_task(
+                db=db,
+                task_id=task_id,
+                concept=request.concept,
+                entity_word=request.entity_word
+            )
+
+            # 准备属性词数据（转换为dict格式）
+            attributes_dict = [attr.model_dump() for attr in attributes]
+
+            # 批量创建属性词记录
+            crud_attribute.create_attributes_batch(
+                db=db,
+                task_id=task_id,
+                attributes=attributes_dict
+            )
+
+            print(f"✅ 任务已保存到数据库: task_id={task_id}, 属性词数量={len(attributes)}")
+
+        except Exception as db_error:
+            # 数据库保存失败不影响API响应，只记录错误日志
+            print(f"⚠️  数据库保存失败: {str(db_error)}")
+            print("注意：API正常返回，但数据未持久化")
+        # ============================================
+
         return AttributeResponse(
             concept=request.concept,
             entity_word=request.entity_word,
@@ -200,6 +251,133 @@ async def generate_attribute_candidates(request: AttributeRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"生成属性词失败: {str(e)}")
+
+
+# ============ Stage 2: 属性词筛选编辑 ============
+
+@app.get("/api/stage2/tasks/{task_id}", response_model=TaskDetailResponse)
+async def get_task_detail(task_id: str, db: Session = Depends(get_db)):
+    """
+    Stage 2: 查询任务详情
+
+    获取任务的完整信息，包括所有属性词和选中状态
+    用于任务恢复功能
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        任务详情，包含所有属性词（不含已删除）及其选中状态
+    """
+    # 查询任务
+    task = crud_task.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+
+    # 查询属性词（排除已删除）
+    attributes_db = crud_attribute.get_attributes_by_task(db, task_id, include_deleted=False)
+
+    # 转换为响应模型
+    attributes = [
+        AttributeWithSelection.model_validate(attr)
+        for attr in attributes_db
+    ]
+
+    # 统计元数据
+    ai_count = sum(1 for attr in attributes if attr.source == "ai")
+    user_count = sum(1 for attr in attributes if attr.source == "user")
+    selected_count = sum(1 for attr in attributes if attr.is_selected)
+
+    metadata = TaskMetadata(
+        total_count=len(attributes),
+        selected_count=selected_count,
+        ai_generated_count=ai_count,
+        user_added_count=user_count
+    )
+
+    return TaskDetailResponse(
+        task_id=task.task_id,
+        concept=task.concept,
+        entity_word=task.entity_word,
+        status=task.status,
+        attributes=attributes,
+        metadata=metadata,
+        created_at=task.created_at,
+        updated_at=task.updated_at
+    )
+
+
+@app.put("/api/stage2/tasks/{task_id}/selection", response_model=UpdateSelectionResponse)
+async def update_task_selection(
+    task_id: str,
+    request: UpdateSelectionRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Stage 2: 更新任务的属性词选择
+
+    保存用户的选择，包括：
+    - 勾选/取消勾选属性词
+    - 添加自定义属性词
+    - 删除属性词（软删除）
+
+    Args:
+        task_id: 任务ID
+        request: 更新请求，包含选中ID、新增词、删除ID
+
+    Returns:
+        更新结果和统计信息
+    """
+    # 检查任务是否存在
+    task = crud_task.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+
+    # 1. 更新选中状态
+    if request.selected_attribute_ids:
+        crud_attribute.update_attributes_selection(
+            db, task_id, request.selected_attribute_ids
+        )
+
+    # 2. 添加自定义属性词
+    added_count = 0
+    for new_attr in request.new_attributes:
+        crud_attribute.add_custom_attribute(
+            db, task_id, new_attr.word, task.concept
+        )
+        added_count += 1
+
+    # 3. 软删除属性词
+    deleted_count = 0
+    if request.deleted_attribute_ids:
+        deleted_count = crud_attribute.soft_delete_attributes(
+            db, task_id, request.deleted_attribute_ids
+        )
+
+    # 4. 更新任务状态为"已选择"
+    crud_task.update_task_status(db, task_id, "selected")
+
+    # 5. 获取最新统计
+    selected_count = crud_attribute.get_selected_count(db, task_id)
+    total_count = len(crud_attribute.get_attributes_by_task(db, task_id, include_deleted=False))
+
+    # 6. 获取更新后的任务信息
+    task = crud_task.get_task(db, task_id)
+
+    return UpdateSelectionResponse(
+        task_id=task.task_id,
+        status=task.status,
+        updated_at=task.updated_at,
+        metadata=UpdateSelectionMetadata(
+            selected_count=selected_count,
+            total_count=total_count,
+            changes=SelectionChanges(
+                selected=len(request.selected_attribute_ids),
+                added=added_count,
+                deleted=deleted_count
+            )
+        )
+    )
 
 
 if __name__ == "__main__":

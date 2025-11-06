@@ -1,0 +1,99 @@
+"""
+SQLAlchemy ORM 数据库模型
+定义tasks和task_attributes表
+"""
+
+from sqlalchemy import Column, String, Integer, Boolean, Text, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from app.database import Base
+import uuid
+
+
+class Task(Base):
+    """任务主表"""
+    __tablename__ = "tasks"
+
+    task_id = Column(
+        String(36),  # 使用String存储UUID字符串，兼容SQLite
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+    concept = Column(String(200), nullable=False, comment="属性概念")
+    entity_word = Column(String(200), nullable=False, default="phone case", comment="本体词")
+    status = Column(
+        String(50),
+        nullable=False,
+        default="draft",
+        comment="任务状态：draft/selected/combined/exported"
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        comment="更新时间"
+    )
+
+    # 关系：一个任务有多个属性词
+    attributes = relationship("TaskAttribute", back_populates="task", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Task(task_id={self.task_id}, concept={self.concept}, status={self.status})>"
+
+
+class TaskAttribute(Base):
+    """任务属性词表"""
+    __tablename__ = "task_attributes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, comment="主键ID")
+    task_id = Column(
+        String(36),
+        ForeignKey("tasks.task_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="任务ID"
+    )
+
+    # 属性词核心字段（8个字段）
+    word = Column(String(100), nullable=False, comment="属性词")
+    concept = Column(String(200), nullable=False, comment="原始属性词概念")
+    type = Column(
+        String(50),
+        nullable=False,
+        comment="词汇类型：original/synonym/related/variant/custom"
+    )
+    translation = Column(Text, comment="中文翻译和说明")
+    use_case = Column(Text, comment="适用场景描述")
+    search_value = Column(
+        String(20),
+        nullable=False,
+        comment="搜索价值：high/medium/low"
+    )
+    search_value_stars = Column(Integer, nullable=False, comment="搜索价值星级：1-5")
+    recommended = Column(Boolean, nullable=False, default=True, comment="是否推荐")
+
+    # 扩展字段
+    source = Column(
+        String(20),
+        nullable=False,
+        default="ai",
+        comment="来源：ai（AI生成）/user（用户添加）"
+    )
+    is_selected = Column(Boolean, nullable=False, default=False, comment="是否被选中")
+    is_deleted = Column(Boolean, nullable=False, default=False, comment="是否已删除（软删除）")
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        comment="更新时间"
+    )
+
+    # 关系：多个属性词属于一个任务
+    task = relationship("Task", back_populates="attributes")
+
+    def __repr__(self):
+        return f"<TaskAttribute(id={self.id}, word={self.word}, selected={self.is_selected})>"

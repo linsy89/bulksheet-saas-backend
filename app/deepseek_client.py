@@ -464,9 +464,9 @@ async def generate_attributes(concept: str) -> List[Dict[str, any]]:
                         {"role": "user", "content": prompt}
                     ],
                     "temperature": 0.7,
-                    "max_tokens": 1000
+                    "max_tokens": 4000
                 },
-                timeout=aiohttp.ClientTimeout(total=30)
+                timeout=aiohttp.ClientTimeout(total=90)
             ) as response:
                 print(f"🔵 DeepSeek API 响应状态码: {response.status}")
 

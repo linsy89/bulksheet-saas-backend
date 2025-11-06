@@ -214,3 +214,21 @@ def soft_delete_all_search_terms(db: Session, task_id: str) -> int:
     )
     db.commit()
     return count
+
+
+def get_valid_search_terms(db: Session, task_id: str) -> List[SearchTerm]:
+    """
+    获取所有有效的搜索词（用于导出）
+
+    Args:
+        db: 数据库会话
+        task_id: 任务ID
+
+    Returns:
+        有效搜索词列表
+    """
+    return db.query(SearchTerm).filter(
+        SearchTerm.task_id == task_id,
+        SearchTerm.is_valid == True,
+        SearchTerm.is_deleted == False
+    ).all()

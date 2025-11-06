@@ -28,6 +28,12 @@ class Task(Base):
         default="draft",
         comment="任务状态：draft/selected/combined/exported"
     )
+
+    # Stage 4 新增字段：产品信息
+    sku = Column(String(100), nullable=True, comment="产品SKU")
+    asin = Column(String(10), nullable=True, comment="亚马逊ASIN")
+    model = Column(String(50), nullable=True, comment="手机型号")
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
     updated_at = Column(
         DateTime(timezone=True),

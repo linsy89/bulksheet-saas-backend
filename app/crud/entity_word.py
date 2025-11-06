@@ -213,3 +213,20 @@ def soft_delete_all_entity_words(db: Session, task_id: str) -> int:
     )
     db.commit()
     return count
+
+
+def get_all_entity_words(db: Session, task_id: str) -> List[EntityWord]:
+    """
+    获取所有本体词变体（用于 Negative Keyword）
+
+    Args:
+        db: 数据库会话
+        task_id: 任务ID
+
+    Returns:
+        本体词列表
+    """
+    return db.query(EntityWord).filter(
+        EntityWord.task_id == task_id,
+        EntityWord.is_deleted == False
+    ).all()

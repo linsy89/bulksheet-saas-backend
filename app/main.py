@@ -5,6 +5,7 @@ Bulksheet SaaS - Minimal FastAPI Application
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Dict, List
 from datetime import datetime
@@ -14,7 +15,12 @@ from app.models import (
     AttributeRequest,
     AttributeResponse,
     AttributeWord,
-    AttributeMetadata
+    AttributeMetadata,
+    # Stage 4
+    ProductInfoRequest,
+    ProductInfoResponse,
+    ProductInfo,
+    ExportRequest
 )
 from app.schemas.stage2 import (
     TaskDetailResponse,
@@ -778,6 +784,114 @@ async def batch_delete_search_terms(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除搜索词失败: {str(e)}")
+
+
+# ============================================
+# Stage 4: Bulksheet 导出
+# ============================================
+
+@app.post("/api/stage4/save-product-info", response_model=ProductInfoResponse)
+async def save_product_info(
+    request: ProductInfoRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Stage 4 API 1: 保存产品信息（SKU, ASIN, Model）
+    """
+    # 检查任务是否存在
+    task = crud_task.get_task(db, request.task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {request.task_id}")
+
+    try:
+        # 更新产品信息
+        updated_task = crud_task.update_product_info(
+            db=db,
+            task_id=request.task_id,
+            sku=request.sku,
+            asin=request.asin,
+            model=request.model.value  # Enum to string
+        )
+
+        return ProductInfoResponse(
+            task_id=updated_task.task_id,
+            product_info=ProductInfo(
+                sku=updated_task.sku,
+                asin=updated_task.asin,
+                model=updated_task.model
+            ),
+            saved_at=datetime.utcnow().isoformat() + "Z"
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存产品信息失败: {str(e)}")
+
+
+@app.post("/api/stage4/export")
+async def export_bulksheet(
+    request: ExportRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Stage 4 API 2: 导出 Bulksheet Excel 文件
+    """
+    # 1. 检查任务是否存在
+    task = crud_task.get_task(db, request.task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {request.task_id}")
+
+    # 2. 检查产品信息是否已保存
+    product_info = crud_task.get_product_info(db, request.task_id)
+    if not product_info:
+        raise HTTPException(
+            status_code=400,
+            detail="产品信息未保存，请先调用 /api/stage4/save-product-info"
+        )
+
+    # 3. 获取有效搜索词
+    search_terms = crud_search_term.get_valid_search_terms(db, request.task_id)
+    if not search_terms:
+        raise HTTPException(
+            status_code=400,
+            detail="没有可导出的搜索词，请先完成 Stage 3"
+        )
+
+    # 4. 获取本体词（用于 Campaign Negative Keywords）
+    entity_words = crud_entity_word.get_all_entity_words(db, request.task_id)
+
+    try:
+        # 5. 生成 Bulksheet
+        from app.services.bulksheet_generator import BulksheetGenerator
+
+        budget_info = {
+            "daily_budget": request.daily_budget,
+            "ad_group_default_bid": request.ad_group_default_bid,
+            "keyword_bid": request.keyword_bid
+        }
+
+        generator = BulksheetGenerator(
+            task=task,
+            product_info=product_info,
+            budget_info=budget_info
+        )
+
+        # 生成 Excel 文件到内存
+        excel_buffer = generator.generate_excel(search_terms, entity_words)
+
+        # 生成文件名
+        filename = generator.generate_filename()
+
+        # 6. 返回文件流
+        return StreamingResponse(
+            excel_buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成 Bulksheet 失败: {str(e)}")
 
 
 if __name__ == "__main__":

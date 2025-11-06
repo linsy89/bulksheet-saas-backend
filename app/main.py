@@ -25,11 +25,31 @@ from app.schemas.stage2 import (
     UpdateSelectionMetadata,
     SelectionChanges
 )
+from app.schemas.stage3 import (
+    EntityWordGenerateRequest,
+    EntityWordGenerateResponse,
+    EntityWordListResponse,
+    EntityWordSelectionRequest,
+    EntityWordSelectionResponse,
+    SearchTermGenerateRequest,
+    SearchTermGenerateResponse,
+    SearchTermListResponse,
+    SearchTermBatchDeleteRequest,
+    SearchTermBatchDeleteResponse,
+    EntityWordItem,
+    EntityWordMetadata,
+    SearchTermItem,
+    SearchTermMetadata
+)
 from app.config import load_prompt, load_ai_config
 from app.services.deepseek_provider import DeepSeekProvider
+from app.services.entity_word_provider import EntityWordProvider
 from app.database import get_db, init_db
 from app.crud import task as crud_task
 from app.crud import attribute as crud_attribute
+from app.crud import entity_word as crud_entity_word
+from app.crud import search_term as crud_search_term
+from app.deepseek_client import DeepSeekClient
 
 app = FastAPI(
     title="Bulksheet SaaS",
@@ -47,11 +67,21 @@ prompt_version = ai_config["prompt_version"]
 # 加载提示词模板
 prompt_template = load_prompt("attribute_expert", version=prompt_version)
 
-# 初始化 AI 服务提供商
+# 初始化 AI 服务提供商（Stage 1 & 2）
 provider_config = ai_config["providers"][active_provider]
 ai_service = DeepSeekProvider(config=provider_config, prompt_template=prompt_template)
 
-print(f"✅ AI 服务已初始化: {active_provider}, 提示词版本: {prompt_version}")
+print(f"✅ Stage 1 & 2 AI 服务已初始化: {active_provider}, 提示词版本: {prompt_version}")
+
+# 初始化 Stage 3 AI 服务（本体词生成）
+entity_word_prompt_template = load_prompt("entity_word_expert", version="v1")
+deepseek_client = DeepSeekClient(
+    api_key=provider_config["api_key"],
+    base_url=provider_config.get("base_url", "https://api.deepseek.com")
+)
+entity_word_service = EntityWordProvider(deepseek_client, entity_word_prompt_template)
+
+print(f"✅ Stage 3 AI 服务已初始化: entity_word_expert_v1")
 
 # ============ 数据库初始化 ============
 
@@ -378,6 +408,368 @@ async def update_task_selection(
             )
         )
     )
+
+
+# ============ Stage 3 API: 本体词生成与搜索词组合 ============
+
+@app.post("/api/stage3/tasks/{task_id}/entity-words/generate", response_model=EntityWordGenerateResponse)
+async def generate_entity_words(
+    task_id: str,
+    request: EntityWordGenerateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Stage 3 API 1: 生成本体词变体
+
+    使用 AI 生成本体词的同义词和变体
+    """
+    # 检查任务是否存在
+    task = crud_task.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+
+    # 状态前置条件验证
+    allowed_statuses = ["selected", "entity_expanded", "entity_selected", "combined"]
+    if task.status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"当前任务状态不允许生成本体词，请先完成属性词筛选。当前状态: {task.status}"
+        )
+
+    # 检查是否已生成本体词
+    existing_entity_words = crud_entity_word.get_entity_words_by_task(db, task_id, include_deleted=False)
+    if existing_entity_words:
+        # 已生成，返回现有数据
+        stats = crud_entity_word.get_entity_word_stats(db, task_id)
+        entity_word_items = [EntityWordItem.model_validate(ew) for ew in existing_entity_words]
+
+        return EntityWordGenerateResponse(
+            task_id=task.task_id,
+            entity_words=entity_word_items,
+            metadata=EntityWordMetadata(**stats),
+            status=task.status,
+            updated_at=task.updated_at
+        )
+
+    # 生成本体词
+    max_count = request.options.max_count if request.options else 15
+
+    try:
+        # 调用 AI 服务（带重试和降级策略）
+        entity_words = await entity_word_service.generate_entity_words(task.entity_word, max_count)
+
+        # 保存到数据库
+        crud_entity_word.create_entity_words_batch(db, task_id, task.concept, entity_words, source="ai")
+
+        # 更新任务状态
+        crud_task.update_task_status(db, task_id, "entity_expanded")
+
+        # 获取最新数据
+        task = crud_task.get_task(db, task_id)
+        entity_words_db = crud_entity_word.get_entity_words_by_task(db, task_id, include_deleted=False)
+        stats = crud_entity_word.get_entity_word_stats(db, task_id)
+
+        entity_word_items = [EntityWordItem.model_validate(ew) for ew in entity_words_db]
+
+        return EntityWordGenerateResponse(
+            task_id=task.task_id,
+            entity_words=entity_word_items,
+            metadata=EntityWordMetadata(**stats),
+            status=task.status,
+            updated_at=task.updated_at
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成本体词失败: {str(e)}")
+
+
+@app.get("/api/stage3/tasks/{task_id}/entity-words", response_model=EntityWordListResponse)
+async def get_entity_words(
+    task_id: str,
+    include_deleted: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Stage 3 API 2: 查询本体词列表
+    """
+    # 检查任务是否存在
+    task = crud_task.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+
+    # 查询本体词
+    entity_words = crud_entity_word.get_entity_words_by_task(db, task_id, include_deleted)
+
+    if not entity_words:
+        raise HTTPException(status_code=404, detail="未生成本体词，请先调用生成接口")
+
+    stats = crud_entity_word.get_entity_word_stats(db, task_id)
+    entity_word_items = [EntityWordItem.model_validate(ew) for ew in entity_words]
+
+    return EntityWordListResponse(
+        task_id=task_id,
+        entity_words=entity_word_items,
+        metadata=EntityWordMetadata(**stats)
+    )
+
+
+@app.put("/api/stage3/tasks/{task_id}/entity-words/selection", response_model=EntityWordSelectionResponse)
+async def update_entity_word_selection(
+    task_id: str,
+    request: EntityWordSelectionRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Stage 3 API 3: 更新本体词选择
+
+    保存用户的选择，包括：
+    - 勾选/取消勾选本体词
+    - 添加自定义本体词
+    - 删除本体词（软删除 + 级联删除相关搜索词）
+    """
+    # 检查任务是否存在
+    task = crud_task.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+
+    # 空选择验证
+    current_selected_count = len(request.selected_entity_word_ids)
+    new_count = len(request.new_entity_words)
+
+    if current_selected_count == 0 and new_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="至少需要选择 1 个本体词或添加 1 个自定义本体词"
+        )
+
+    # 转换自定义本体词为标准格式
+    new_entity_words_data = []
+    for new_ew in request.new_entity_words:
+        new_entity_words_data.append({
+            "entity_word": new_ew.entity_word,
+            "type": "original",
+            "translation": f"{new_ew.entity_word}（用户添加）",
+            "use_case": "用户自定义",
+            "recommended": True,
+            "search_value": "high",
+            "search_value_stars": 5
+        })
+
+    try:
+        # 更新选择（包括级联软删除）
+        selected_count, added_count, deleted_count = crud_entity_word.update_entity_word_selection(
+            db,
+            task_id,
+            request.selected_entity_word_ids,
+            new_entity_words_data,
+            request.deleted_entity_word_ids,
+            task.concept
+        )
+
+        # 更新任务状态
+        crud_task.update_task_status(db, task_id, "entity_selected")
+
+        # 获取最新数据
+        task = crud_task.get_task(db, task_id)
+        total_count = len(crud_entity_word.get_entity_words_by_task(db, task_id, include_deleted=False))
+
+        return EntityWordSelectionResponse(
+            task_id=task.task_id,
+            status=task.status,
+            updated_at=task.updated_at,
+            metadata={
+                "selected_count": selected_count,
+                "total_count": total_count,
+                "changes": {
+                    "selected": len(request.selected_entity_word_ids),
+                    "added": added_count,
+                    "deleted": deleted_count
+                }
+            }
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新选择失败: {str(e)}")
+
+
+@app.post("/api/stage3/tasks/{task_id}/search-terms", response_model=SearchTermGenerateResponse)
+async def generate_search_terms(
+    task_id: str,
+    request: SearchTermGenerateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Stage 3 API 4: 生成搜索词组合
+
+    笛卡尔积组合：属性词 × 本体词
+    """
+    # 检查任务是否存在
+    task = crud_task.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+
+    # 状态前置条件验证
+    allowed_statuses = ["entity_selected", "combined"]
+    if task.status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"当前任务状态不允许生成搜索词，请先完成本体词筛选。当前状态: {task.status}"
+        )
+
+    # 获取选中的属性词和本体词
+    selected_attributes = crud_attribute.get_selected_attributes(db, task_id)
+    selected_entity_words = crud_entity_word.get_selected_entity_words(db, task_id)
+
+    if not selected_attributes:
+        raise HTTPException(status_code=400, detail="没有选中的属性词，请先选择属性词")
+
+    if not selected_entity_words:
+        raise HTTPException(status_code=400, detail="没有选中的本体词，请先选择本体词")
+
+    # 笛卡尔积上限验证
+    attr_count = len(selected_attributes)
+    entity_count = len(selected_entity_words)
+    total_combinations = attr_count * entity_count
+
+    MAX_SEARCH_TERMS = 1000
+    if total_combinations > MAX_SEARCH_TERMS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"搜索词组合数量超过上限（当前：{attr_count} × {entity_count} = {total_combinations}，上限：{MAX_SEARCH_TERMS}），请减少属性词或本体词的选择数量"
+        )
+
+    # 获取选项
+    max_length = request.options.max_length if request.options else 80
+
+    try:
+        # 幂等操作：删除现有搜索词
+        crud_search_term.delete_existing_search_terms(db, task_id)
+
+        # 笛卡尔积组合
+        search_terms_data = []
+        for attr in selected_attributes:
+            for entity in selected_entity_words:
+                term = f"{attr.word} {entity.entity_word}"
+                length = len(term)
+                is_valid = length <= max_length
+
+                search_terms_data.append({
+                    "term": term,
+                    "attribute_id": attr.id,
+                    "attribute_word": attr.word,
+                    "entity_word_id": entity.id,
+                    "entity_word": entity.entity_word,
+                    "length": length,
+                    "is_valid": is_valid
+                })
+
+        # 批量保存
+        crud_search_term.create_search_terms_batch(db, task_id, search_terms_data)
+
+        # 更新任务状态
+        crud_task.update_task_status(db, task_id, "combined")
+
+        # 获取最新数据
+        task = crud_task.get_task(db, task_id)
+        search_terms, total = crud_search_term.get_search_terms_by_task(
+            db, task_id, page=1, page_size=total_combinations
+        )
+        stats = crud_search_term.get_search_term_stats(db, task_id)
+
+        search_term_items = [SearchTermItem.model_validate(st) for st in search_terms]
+
+        return SearchTermGenerateResponse(
+            task_id=task.task_id,
+            search_terms=search_term_items,
+            metadata=SearchTermMetadata(
+                total_terms=stats["total_terms"],
+                valid_terms=stats["valid_terms"],
+                invalid_terms=stats["invalid_terms"],
+                attribute_count=attr_count,
+                entity_word_count=entity_count
+            ),
+            status=task.status,
+            updated_at=task.updated_at
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成搜索词失败: {str(e)}")
+
+
+@app.get("/api/stage3/tasks/{task_id}/search-terms", response_model=SearchTermListResponse)
+async def get_search_terms(
+    task_id: str,
+    page: int = 1,
+    page_size: int = 20,
+    filter_by_attribute: str = None,
+    filter_by_entity: str = None,
+    include_deleted: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Stage 3 API 5: 查询搜索词列表（分页）
+    """
+    # 检查任务是否存在
+    task = crud_task.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+
+    # 查询搜索词
+    search_terms, total = crud_search_term.get_search_terms_by_task(
+        db, task_id, page, page_size, filter_by_attribute, filter_by_entity, include_deleted
+    )
+
+    search_term_items = [SearchTermItem.model_validate(st) for st in search_terms]
+
+    return SearchTermListResponse(
+        task_id=task_id,
+        search_terms=search_term_items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        filter_by_attribute=filter_by_attribute,
+        filter_by_entity=filter_by_entity
+    )
+
+
+@app.delete("/api/stage3/tasks/{task_id}/search-terms/batch", response_model=SearchTermBatchDeleteResponse)
+async def batch_delete_search_terms(
+    task_id: str,
+    request: SearchTermBatchDeleteRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Stage 3 API 6: 批量删除搜索词（软删除）
+    """
+    # 检查任务是否存在
+    task = crud_task.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+
+    try:
+        # 批量软删除（带原子性验证）
+        deleted_count = crud_search_term.soft_delete_search_terms(
+            db, task_id, request.search_term_ids
+        )
+
+        # 获取剩余数量
+        remaining_count = crud_search_term.get_remaining_count(db, task_id)
+
+        return SearchTermBatchDeleteResponse(
+            task_id=task_id,
+            deleted_count=deleted_count,
+            remaining_count=remaining_count,
+            message=f"已成功删除 {deleted_count} 个搜索词"
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除搜索词失败: {str(e)}")
 
 
 if __name__ == "__main__":

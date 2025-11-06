@@ -188,3 +188,21 @@ def get_selected_count(db: Session, task_id: str) -> int:
         TaskAttribute.is_selected == True,
         TaskAttribute.is_deleted == False
     ).count()
+
+
+def get_selected_attributes(db: Session, task_id: str) -> List[TaskAttribute]:
+    """
+    获取任务中已选中的属性词列表
+
+    Args:
+        db: 数据库Session
+        task_id: 任务ID
+
+    Returns:
+        已选中的属性词列表
+    """
+    return db.query(TaskAttribute).filter(
+        TaskAttribute.task_id == task_id,
+        TaskAttribute.is_selected == True,
+        TaskAttribute.is_deleted == False
+    ).all()

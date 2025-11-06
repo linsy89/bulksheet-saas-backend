@@ -73,10 +73,19 @@ ai_service = DeepSeekProvider(config=provider_config, prompt_template=prompt_tem
 print(f"✅ Stage 1 & 2 AI 服务已初始化: {active_provider}, 提示词版本: {prompt_version}")
 
 # 初始化 Stage 3 AI 服务（本体词生成）
+import os
 entity_word_prompt_template = load_prompt("entity_word_expert", version="v1")
+
+# 从环境变量读取 API key
+api_key_env = provider_config.get("api_key_env", "DEEPSEEK_API_KEY")
+deepseek_api_key = os.getenv(api_key_env)
+
+if not deepseek_api_key:
+    print(f"⚠️  警告：环境变量 {api_key_env} 未设置，Stage 3 AI 服务将使用降级策略")
+
 entity_word_service = EntityWordProvider(
-    api_key=provider_config["api_key"],
-    api_base=provider_config.get("base_url", "https://api.deepseek.com/v1"),
+    api_key=deepseek_api_key or "",
+    api_base=provider_config.get("api_base", "https://api.deepseek.com/v1"),
     prompt_template=entity_word_prompt_template
 )
 

@@ -6,10 +6,11 @@
 import json
 import re
 import logging
+import os
+import aiohttp
 from typing import List, Dict, Tuple
 from json.decoder import JSONDecodeError
 from tenacity import retry, stop_after_attempt, wait_fixed, before_log, after_log
-from app.deepseek_client import DeepSeekClient
 
 logger = logging.getLogger(__name__)
 
@@ -106,8 +107,10 @@ class InsufficientResultsError(Exception):
 class EntityWordProvider:
     """本体词生成服务提供者"""
 
-    def __init__(self, deepseek_client: DeepSeekClient, prompt_template: str):
-        self.client = deepseek_client
+    def __init__(self, api_key: str, api_base: str, prompt_template: str):
+        self.api_key = api_key
+        self.api_base = api_base
+        self.model = "deepseek-chat"
         self.prompt_template = prompt_template
 
     @retry(
@@ -130,9 +133,33 @@ class EntityWordProvider:
         - 无（所有异常都会重试）
         """
         logger.info(f"调用 DeepSeek API 生成本体词...")
-        response = await self.client.generate(prompt, temperature=0.7)
-        logger.info(f"API 调用成功，返回长度: {len(response)}")
-        return response
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.api_base}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": self.model,
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful assistant that generates JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 4000
+                },
+                timeout=aiohttp.ClientTimeout(total=90)
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise Exception(f"API 返回错误状态码 {response.status}: {error_text[:200]}")
+
+                data = await response.json()
+                content = data["choices"][0]["message"]["content"]
+                logger.info(f"API 调用成功，返回长度: {len(content)}")
+                return content
 
     def _parse_response(self, response: str) -> List[Dict]:
         """

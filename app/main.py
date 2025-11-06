@@ -49,7 +49,6 @@ from app.crud import task as crud_task
 from app.crud import attribute as crud_attribute
 from app.crud import entity_word as crud_entity_word
 from app.crud import search_term as crud_search_term
-from app.deepseek_client import DeepSeekClient
 
 app = FastAPI(
     title="Bulksheet SaaS",
@@ -75,11 +74,11 @@ print(f"✅ Stage 1 & 2 AI 服务已初始化: {active_provider}, 提示词版�
 
 # 初始化 Stage 3 AI 服务（本体词生成）
 entity_word_prompt_template = load_prompt("entity_word_expert", version="v1")
-deepseek_client = DeepSeekClient(
+entity_word_service = EntityWordProvider(
     api_key=provider_config["api_key"],
-    base_url=provider_config.get("base_url", "https://api.deepseek.com")
+    api_base=provider_config.get("base_url", "https://api.deepseek.com/v1"),
+    prompt_template=entity_word_prompt_template
 )
-entity_word_service = EntityWordProvider(deepseek_client, entity_word_prompt_template)
 
 print(f"✅ Stage 3 AI 服务已初始化: entity_word_expert_v1")
 

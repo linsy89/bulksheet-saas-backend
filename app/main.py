@@ -15,13 +15,32 @@ from app.models import (
     AttributeWord,
     AttributeMetadata
 )
-from app.deepseek_client import generate_attributes
+from app.config import load_prompt, load_ai_config
+from app.services.deepseek_provider import DeepSeekProvider
 
 app = FastAPI(
     title="Bulksheet SaaS",
     version="2.0.0",
     description="AI-powered Amazon Advertising Bulksheet Generator"
 )
+
+# ============ AI 服务初始化 ============
+
+# 加载配置
+ai_config = load_ai_config()
+active_provider = ai_config["active_provider"]
+prompt_version = ai_config["prompt_version"]
+
+# 加载提示词模板
+prompt_template = load_prompt("attribute_expert", version=prompt_version)
+
+# 初始化 AI 服务提供商
+provider_config = ai_config["providers"][active_provider]
+ai_service = DeepSeekProvider(config=provider_config, prompt_template=prompt_template)
+
+print(f"✅ AI 服务已初始化: {active_provider}, 提示词版本: {prompt_version}")
+
+# ============ CORS 配置 ============
 
 # CORS配置 - 允许前端访问
 app.add_middleware(
@@ -156,8 +175,8 @@ async def generate_attribute_candidates(request: AttributeRequest):
     - 元数据统计信息
     """
     try:
-        # 调用DeepSeek API生成属性词（返回中文字段）
-        attributes_data = await generate_attributes(request.concept)
+        # 调用 AI 服务生成属性词（返回中文字段）
+        attributes_data = await ai_service.generate_attributes(request.concept, request.entity_word)
 
         # 转换为标准格式（中文字段 → 英文字段）
         attributes = [

@@ -43,7 +43,7 @@ class AttributeResponse(BaseModel):
     """Stage 1 属性词生成响应"""
     concept: str = Field(..., description="输入的属性概念")
     entity_word: str = Field(..., description="本体词")
-    attributes: List[AttributeWord] = Field(..., description="属性词列表")
+    attributes: List[Dict] = Field(..., description="属性词列表（包含数据库ID）")
     task_id: str = Field(..., description="任务ID")
     metadata: AttributeMetadata = Field(..., description="元数据")
 

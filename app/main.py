@@ -280,19 +280,27 @@ async def generate_attribute_candidates(
 
             print(f"✅ 任务已保存到数据库: task_id={task_id}, 属性词数量={len(attributes)}")
 
-        except Exception as db_error:
-            # 数据库保存失败不影响API响应，只记录错误日志
-            print(f"⚠️  数据库保存失败: {str(db_error)}")
-            print("注意：API正常返回，但数据未持久化")
-        # ============================================
+            # 从数据库重新查询带ID的属性词（修复：前端需要数据库ID）
+            saved_attributes = crud_attribute.get_attributes_by_task(db, task_id)
+            attributes_with_ids = [
+                AttributeWithSelection.model_validate(attr)
+                for attr in saved_attributes
+            ]
 
-        return AttributeResponse(
-            concept=request.concept,
-            entity_word=request.entity_word,
-            attributes=attributes,
-            task_id=task_id,
-            metadata=metadata
-        )
+            # 返回带ID的数据库对象
+            return AttributeResponse(
+                concept=request.concept,
+                entity_word=request.entity_word,
+                attributes=attributes_with_ids,
+                task_id=task_id,
+                metadata=metadata
+            )
+
+        except Exception as db_error:
+            # 数据库保存失败 - 这是关键错误，应该抛出异常
+            print(f"❌ 数据库保存失败: {str(db_error)}")
+            raise HTTPException(status_code=500, detail=f"保存任务失败: {str(db_error)}")
+        # ============================================
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"生成属性词失败: {str(e)}")

@@ -283,11 +283,11 @@ async def generate_attribute_candidates(
             # 从数据库重新查询带ID的属性词（修复：前端需要数据库ID）
             saved_attributes = crud_attribute.get_attributes_by_task(db, task_id)
             attributes_with_ids = [
-                AttributeWithSelection.model_validate(attr)
+                AttributeWithSelection.model_validate(attr).model_dump()
                 for attr in saved_attributes
             ]
 
-            # 返回带ID的数据库对象
+            # 返回带ID的数据库对象（转换为字典）
             return AttributeResponse(
                 concept=request.concept,
                 entity_word=request.entity_word,

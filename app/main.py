@@ -107,9 +107,10 @@ async def startup_event():
 # ============ CORS 配置 ============
 
 # CORS配置 - 允许前端访问
+# ⚠️ 注意：开发阶段使用 "*" 允许所有来源，部署到生产环境前必须改为具体域名！
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=["*"],  # 开发阶段：允许所有来源
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

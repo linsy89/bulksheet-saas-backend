@@ -1,4 +1,4 @@
-run = "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+run = "cd backend_v2 && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 modules = ["python-3.9"]
 

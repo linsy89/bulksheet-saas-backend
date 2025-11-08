@@ -1,0 +1,27 @@
+# AI 模型配置文件
+# 用于管理不同AI提供商的配置
+
+providers:
+  # DeepSeek 配置
+  deepseek:
+    api_key_env: "DEEPSEEK_API_KEY"       # 环境变量名称
+    api_base: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    max_tokens: 4000                       # 最大输出token数
+    timeout: 90                            # 请求超时时间（秒）
+    temperature: 0.7                       # 生成温度
+
+  # 未来可以添加其他提供商
+  # openai:
+  #   api_key_env: "OPENAI_API_KEY"
+  #   api_base: "https://api.openai.com/v1"
+  #   model: "gpt-4"
+  #   max_tokens: 4000
+  #   timeout: 60
+  #   temperature: 0.7
+
+# 当前激活的提供商
+active_provider: "deepseek"
+
+# 当前使用的提示词版本
+prompt_version: "v1"

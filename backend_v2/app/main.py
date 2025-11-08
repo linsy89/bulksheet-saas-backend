@@ -113,6 +113,16 @@ ALLOWED_ORIGINS = os.getenv(
     "http://localhost:5173,http://localhost:5174"
 ).split(",")
 
+# 调试日志：打印加载的CORS配置
+print("=" * 70)
+print("🔧 CORS 配置加载")
+print("=" * 70)
+print(f"CORS_ALLOWED_ORIGINS 环境变量: {os.getenv('CORS_ALLOWED_ORIGINS')}")
+print(f"解析后的 ALLOWED_ORIGINS 列表 (共 {len(ALLOWED_ORIGINS)} 个):")
+for i, origin in enumerate(ALLOWED_ORIGINS, 1):
+    print(f"  {i}. '{origin.strip()}'")
+print("=" * 70)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,  # ✅ 仅允许指定域名

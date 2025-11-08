@@ -106,14 +106,19 @@ async def startup_event():
 
 # ============ CORS 配置 ============
 
-# CORS配置 - 允许前端访问
-# ⚠️ 注意：开发阶段使用 "*" 允许所有来源，部署到生产环境前必须改为具体域名！
+# CORS配置 - 生产环境：仅允许指定域名
+# 从环境变量读取允许的源，默认为本地开发
+ALLOWED_ORIGINS = os.getenv(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:5174"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 开发阶段：允许所有来源
+    allow_origins=ALLOWED_ORIGINS,  # ✅ 仅允许指定域名
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # ✅ 明确指定方法
+    allow_headers=["Content-Type", "Authorization"],  # ✅ 明确指定头部
 )
 
 

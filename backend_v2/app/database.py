@@ -7,12 +7,9 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
-
-# 加载环境变量
-load_dotenv()
 
 # 从环境变量获取数据库URL
+# 注意：Replit Secrets 会自动注入为系统环境变量，不需要 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bulksheet.db")
 
 # 配置数据库引擎

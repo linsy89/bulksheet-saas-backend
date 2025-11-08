@@ -1,4 +1,4 @@
-run = "cd backend_v2 && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+run = "cd backend_v2 && uvicorn app.main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 300"
 
 modules = ["python-3.9"]
 
@@ -6,4 +6,4 @@ modules = ["python-3.9"]
 channel = "stable-23_11"
 
 [deployment]
-run = ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+run = ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 300"]

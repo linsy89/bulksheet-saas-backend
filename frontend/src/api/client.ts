@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 // 创建axios实例
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 180000,  // 180秒超时（AI生成可能需要较长时间）
+  timeout: 300000,  // 300秒超时（AI生成可能需要较长时间）
   headers: {
     'Content-Type': 'application/json',
   },

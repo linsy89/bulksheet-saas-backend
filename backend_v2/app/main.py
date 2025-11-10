@@ -915,6 +915,12 @@ async def export_bulksheet(
         )
 
     except Exception as e:
+        import traceback
+        print("=" * 70)
+        print("❌ 导出 Bulksheet 失败，错误详情:")
+        print("=" * 70)
+        print(traceback.format_exc())
+        print("=" * 70)
         raise HTTPException(status_code=500, detail=f"生成 Bulksheet 失败: {str(e)}")
 
 

@@ -91,16 +91,20 @@ class BulksheetGenerator:
     def _create_ad_group_row(self) -> list:
         """创建 Ad Group 行
 
-        注意：亚马逊的反直觉格式 - ID列填名称，Name列留空！
+        注意：Ad Group 创建时的特殊规则
+        - Campaign ID 填写父 Campaign 的名称
+        - Ad Group ID 留空（因为还未创建）
+        - Campaign Name 留空
+        - Ad Group Name 填写 Ad Group 的名称
         """
         row = [""] * 31
         row[0] = "Sponsored Products"
         row[1] = "Ad Group"
         row[2] = "create"
-        row[3] = self.campaign_name     # Campaign ID - 填写Campaign Name！
-        row[4] = self.ad_group_name     # Ad Group ID - 填写Ad Group Name！
-        # row[9] = Campaign Name - 必须留空！
-        # row[10] = Ad Group Name - 必须留空！
+        row[3] = self.campaign_name     # Campaign ID - 填写父Campaign Name
+        # row[4] = Ad Group ID - 留空！还未创建
+        # row[9] = Campaign Name - 留空
+        row[10] = self.ad_group_name    # Ad Group Name - 填写Ad Group名称！
         row[13] = "Manual"
         row[14] = "enabled"
         row[18] = self.budget_info["ad_group_default_bid"]

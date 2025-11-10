@@ -94,7 +94,7 @@ class BulksheetGenerator:
         row[0] = "Sponsored Products"
         row[1] = "Ad Group"
         row[2] = "create"
-        row[3] = self.campaign_name     # Campaign ID
+        # row[3] = Campaign ID - 对于create操作必须留空
         row[9] = self.campaign_name     # Campaign Name
         row[10] = self.ad_group_name    # Ad Group Name
         row[13] = "Manual"
@@ -108,10 +108,10 @@ class BulksheetGenerator:
         row[0] = "Sponsored Products"
         row[1] = "Product Ad"
         row[2] = "create"
-        row[3] = self.campaign_name
-        row[4] = self.ad_group_name
-        row[9] = self.campaign_name
-        row[10] = self.ad_group_name
+        # row[3] = Campaign ID - 对于create操作必须留空
+        # row[4] = Ad Group ID - 对于create操作必须留空
+        row[9] = self.campaign_name     # Campaign Name
+        row[10] = self.ad_group_name    # Ad Group Name
         row[13] = "Manual"
         row[14] = "enabled"
         row[16] = self.product_info["sku"]   # SKU
@@ -124,10 +124,10 @@ class BulksheetGenerator:
         row[0] = "Sponsored Products"
         row[1] = "Keyword"
         row[2] = "create"
-        row[3] = self.campaign_name
-        row[4] = self.ad_group_name
-        row[9] = self.campaign_name
-        row[10] = self.ad_group_name
+        # row[3] = Campaign ID - 对于create操作必须留空
+        # row[4] = Ad Group ID - 对于create操作必须留空
+        row[9] = self.campaign_name     # Campaign Name
+        row[10] = self.ad_group_name    # Ad Group Name
         row[14] = "enabled"
         row[19] = self.budget_info["keyword_bid"]  # Bid
         row[20] = keyword_text                      # Keyword Text
@@ -138,16 +138,16 @@ class BulksheetGenerator:
         """创建 Campaign Negative Keyword 行（Campaign Negative Exact）
 
         注意：Campaign级别的negative keywords不关联ad group，
-        因此Ad Group ID (row[4]) 和 Ad Group Name (row[10]) 必须留空
+        因此Campaign ID、Ad Group ID 和 Ad Group Name 都必须留空
         """
         row = [""] * 31
         row[0] = "Sponsored Products"
         row[1] = "Keyword"
         row[2] = "create"
-        row[3] = self.campaign_name
-        # row[4] = Ad Group ID - 必须留空！Campaign级别不关联ad group
-        row[9] = self.campaign_name
-        # row[10] = Ad Group Name - 必须留空！
+        # row[3] = Campaign ID - 对于create操作必须留空
+        # row[4] = Ad Group ID - Campaign级别不关联ad group，必须留空
+        row[9] = self.campaign_name     # Campaign Name
+        # row[10] = Ad Group Name - Campaign级别不关联ad group，必须留空
         row[14] = "enabled"
         # row[19] = Bid 留空（negative keyword 不需要出价）
         row[20] = keyword_text                  # Keyword Text

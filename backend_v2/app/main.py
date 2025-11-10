@@ -907,11 +907,17 @@ async def export_bulksheet(
         # 生成文件名
         filename = generator.generate_filename()
 
+        # 对文件名进行 URL 编码以支持中文字符（RFC 5987）
+        from urllib.parse import quote
+        encoded_filename = quote(filename)
+
         # 6. 返回文件流
         return StreamingResponse(
             excel_buffer,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+            }
         )
 
     except Exception as e:

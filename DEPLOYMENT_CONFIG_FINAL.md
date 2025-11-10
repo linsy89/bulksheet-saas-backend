@@ -4,6 +4,10 @@
 
 本文档包含所有需要修改的配置文件的**最终版本**，请仔细审核后再执行。
 
+> **📚 相关文档**：
+> - [`REPLIT_DEPLOYMENT_CORS_DEBUG.md`](./REPLIT_DEPLOYMENT_CORS_DEBUG.md) - **CORS持续失败的调试经验**（必读！记录了3小时调试过程和解决方案）
+> - [`REPLIT_ENV_SECRETS_GUIDE.md`](./REPLIT_ENV_SECRETS_GUIDE.md) - Replit Secrets与.env文件的区别
+
 ---
 
 ## 1. 后端 CORS 配置修改（关键安全配置）

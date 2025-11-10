@@ -89,29 +89,36 @@ class BulksheetGenerator:
         return row
 
     def _create_ad_group_row(self) -> list:
-        """创建 Ad Group 行"""
+        """创建 Ad Group 行
+
+        注意：亚马逊的反直觉格式 - ID列填名称，Name列留空！
+        """
         row = [""] * 31
         row[0] = "Sponsored Products"
         row[1] = "Ad Group"
         row[2] = "create"
-        # row[3] = Campaign ID - 对于create操作必须留空
-        row[9] = self.campaign_name     # Campaign Name
-        row[10] = self.ad_group_name    # Ad Group Name
+        row[3] = self.campaign_name     # Campaign ID - 填写Campaign Name！
+        row[4] = self.ad_group_name     # Ad Group ID - 填写Ad Group Name！
+        # row[9] = Campaign Name - 必须留空！
+        # row[10] = Ad Group Name - 必须留空！
         row[13] = "Manual"
         row[14] = "enabled"
         row[18] = self.budget_info["ad_group_default_bid"]
         return row
 
     def _create_product_ad_row(self) -> list:
-        """创建 Product Ad 行"""
+        """创建 Product Ad 行
+
+        注意：亚马逊的反直觉格式 - ID列填名称，Name列留空！
+        """
         row = [""] * 31
         row[0] = "Sponsored Products"
         row[1] = "Product Ad"
         row[2] = "create"
-        # row[3] = Campaign ID - 对于create操作必须留空
-        # row[4] = Ad Group ID - 对于create操作必须留空
-        row[9] = self.campaign_name     # Campaign Name
-        row[10] = self.ad_group_name    # Ad Group Name
+        row[3] = self.campaign_name     # Campaign ID - 填写Campaign Name！
+        row[4] = self.ad_group_name     # Ad Group ID - 填写Ad Group Name！
+        # row[9] = Campaign Name - 必须留空！
+        # row[10] = Ad Group Name - 必须留空！
         row[13] = "Manual"
         row[14] = "enabled"
         row[16] = self.product_info["sku"]   # SKU
@@ -119,15 +126,18 @@ class BulksheetGenerator:
         return row
 
     def _create_keyword_row(self, keyword_text: str) -> list:
-        """创建 Keyword 行（Broad match）"""
+        """创建 Keyword 行（Broad match）
+
+        注意：亚马逊的反直觉格式 - ID列填名称，Name列留空！
+        """
         row = [""] * 31
         row[0] = "Sponsored Products"
         row[1] = "Keyword"
         row[2] = "create"
-        # row[3] = Campaign ID - 对于create操作必须留空
-        # row[4] = Ad Group ID - 对于create操作必须留空
-        row[9] = self.campaign_name     # Campaign Name
-        row[10] = self.ad_group_name    # Ad Group Name
+        row[3] = self.campaign_name     # Campaign ID - 填写Campaign Name！
+        row[4] = self.ad_group_name     # Ad Group ID - 填写Ad Group Name！
+        # row[9] = Campaign Name - 必须留空！
+        # row[10] = Ad Group Name - 必须留空！
         row[14] = "enabled"
         row[19] = self.budget_info["keyword_bid"]  # Bid
         row[20] = keyword_text                      # Keyword Text
@@ -137,17 +147,18 @@ class BulksheetGenerator:
     def _create_campaign_negative_keyword_row(self, keyword_text: str) -> list:
         """创建 Campaign Negative Keyword 行（Campaign Negative Exact）
 
-        注意：Campaign级别的negative keywords不关联ad group，
-        因此Campaign ID、Ad Group ID 和 Ad Group Name 都必须留空
+        注意：
+        1. Campaign级别的negative keywords不关联ad group
+        2. 亚马逊的反直觉格式 - Campaign ID填名称，其他留空
         """
         row = [""] * 31
         row[0] = "Sponsored Products"
         row[1] = "Keyword"
         row[2] = "create"
-        # row[3] = Campaign ID - 对于create操作必须留空
-        # row[4] = Ad Group ID - Campaign级别不关联ad group，必须留空
-        row[9] = self.campaign_name     # Campaign Name
-        # row[10] = Ad Group Name - Campaign级别不关联ad group，必须留空
+        row[3] = self.campaign_name     # Campaign ID - 填写Campaign Name！
+        # row[4] = Ad Group ID - Campaign级别不需要，留空
+        # row[9] = Campaign Name - 必须留空！
+        # row[10] = Ad Group Name - Campaign级别不需要，留空
         row[14] = "enabled"
         # row[19] = Bid 留空（negative keyword 不需要出价）
         row[20] = keyword_text                  # Keyword Text

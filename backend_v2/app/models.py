@@ -52,18 +52,49 @@ class AttributeResponse(BaseModel):
 
 class PhoneModel(str, Enum):
     """手机型号枚举"""
+    # iPhone 16 系列
     IPHONE_16_PRO_MAX = "iPhone 16 Pro Max"
     IPHONE_16_PRO = "iPhone 16 Pro"
     IPHONE_16_PLUS = "iPhone 16 Plus"
     IPHONE_16 = "iPhone 16"
+
+    # iPhone 15 系列
     IPHONE_15_PRO_MAX = "iPhone 15 Pro Max"
     IPHONE_15_PRO = "iPhone 15 Pro"
     IPHONE_15_PLUS = "iPhone 15 Plus"
     IPHONE_15 = "iPhone 15"
+
+    # iPhone 14 系列
     IPHONE_14_PRO_MAX = "iPhone 14 Pro Max"
     IPHONE_14_PRO = "iPhone 14 Pro"
     IPHONE_14_PLUS = "iPhone 14 Plus"
     IPHONE_14 = "iPhone 14"
+
+    # iPhone 13 系列
+    IPHONE_13_PRO_MAX = "iPhone 13 Pro Max"
+    IPHONE_13_PRO = "iPhone 13 Pro"
+    IPHONE_13 = "iPhone 13"
+    IPHONE_13_MINI = "iPhone 13 mini"
+
+    # iPhone 12 系列
+    IPHONE_12_PRO_MAX = "iPhone 12 Pro Max"
+    IPHONE_12_PRO = "iPhone 12 Pro"
+    IPHONE_12 = "iPhone 12"
+    IPHONE_12_MINI = "iPhone 12 mini"
+
+    # iPhone 11 系列
+    IPHONE_11_PRO_MAX = "iPhone 11 Pro Max"
+    IPHONE_11_PRO = "iPhone 11 Pro"
+    IPHONE_11 = "iPhone 11"
+
+    # iPhone SE 系列
+    IPHONE_SE_2022 = "iPhone SE (2022)"
+    IPHONE_SE_2020 = "iPhone SE (2020)"
+
+    # iPhone XS/XR 系列
+    IPHONE_XS_MAX = "iPhone XS Max"
+    IPHONE_XS = "iPhone XS"
+    IPHONE_XR = "iPhone XR"
 
 
 class ProductInfoRequest(BaseModel):

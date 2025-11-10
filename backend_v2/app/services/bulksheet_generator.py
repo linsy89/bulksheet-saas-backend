@@ -152,17 +152,18 @@ class BulksheetGenerator:
         """创建 Campaign Negative Keyword 行（Campaign Negative Exact）
 
         注意：
-        1. Campaign级别的negative keywords不关联ad group
-        2. 基于成功案例 - Campaign ID 和 Campaign Name 都填写
+        1. 虽然是Campaign级别，但Amazon实际上传时要求填写所有4列
+        2. 官方文档说Ad Group应留空，但实际测试必须填写
+        3. 基于成功案例和实际经验 - 所有4列都填写
         """
         row = [""] * 31
         row[0] = "Sponsored Products"
         row[1] = "Keyword"
         row[2] = "create"
         row[3] = self.campaign_name     # Campaign ID
-        # row[4] = Ad Group ID - Campaign级别不需要，留空
+        row[4] = self.ad_group_name     # Ad Group ID - 实际必须填写！
         row[9] = self.campaign_name     # Campaign Name
-        # row[10] = Ad Group Name - Campaign级别不需要，留空
+        row[10] = self.ad_group_name    # Ad Group Name - 实际必须填写！
         row[14] = "enabled"
         # row[19] = Bid 留空（negative keyword 不需要出价）
         row[20] = keyword_text                  # Keyword Text

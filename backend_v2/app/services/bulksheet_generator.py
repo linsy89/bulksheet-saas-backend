@@ -149,16 +149,18 @@ class BulksheetGenerator:
         return row
 
     def _create_campaign_negative_keyword_row(self, keyword_text: str) -> list:
-        """创建 Campaign Negative Keyword 行（Campaign Negative Exact）
+        """创建 Campaign Negative Keyword 行（Negative Exact）
 
         注意：
         1. 虽然是Campaign级别，但Amazon实际上传时要求填写所有4列
         2. 官方文档说Ad Group应留空，但实际测试必须填写
         3. 基于成功案例和实际经验 - 所有4列都填写
+        4. Entity使用"Campaign negative keyword"区分campaign级别
+        5. Match Type使用"Negative Exact"（不是"Campaign Negative Exact"）
         """
         row = [""] * 31
         row[0] = "Sponsored Products"
-        row[1] = "Keyword"
+        row[1] = "Campaign negative keyword"  # Entity - 明确指定campaign级别
         row[2] = "create"
         row[3] = self.campaign_name     # Campaign ID
         row[4] = self.ad_group_name     # Ad Group ID - 实际必须填写！
@@ -167,7 +169,7 @@ class BulksheetGenerator:
         row[14] = "enabled"
         # row[19] = Bid 留空（negative keyword 不需要出价）
         row[20] = keyword_text                  # Keyword Text
-        row[23] = "Campaign Negative Exact"     # Match Type (Campaign级别)
+        row[23] = "Negative Exact"              # Match Type - 标准格式
         return row
 
     def _generate_campaign_name(self) -> str:

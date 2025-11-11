@@ -52,6 +52,12 @@ class AttributeResponse(BaseModel):
 
 class PhoneModel(str, Enum):
     """手机型号枚举"""
+    # iPhone 17 系列 (最新款)
+    IPHONE_17_PRO_MAX = "iPhone 17 Pro Max"
+    IPHONE_17_PRO = "iPhone 17 Pro"
+    IPHONE_17_AIR = "iPhone 17 Air"
+    IPHONE_17 = "iPhone 17"
+
     # iPhone 16 系列
     IPHONE_16_PRO_MAX = "iPhone 16 Pro Max"
     IPHONE_16_PRO = "iPhone 16 Pro"

@@ -196,6 +196,11 @@ export interface ExportRequest {
 // ========== 手机型号枚举 ==========
 
 export type PhoneModel =
+  // iPhone 17 系列
+  | 'iPhone 17 Pro Max'
+  | 'iPhone 17 Pro'
+  | 'iPhone 17 Air'
+  | 'iPhone 17'
   // iPhone 16 系列
   | 'iPhone 16 Pro Max'
   | 'iPhone 16 Pro'
@@ -234,6 +239,12 @@ export type PhoneModel =
   | 'iPhone XR';
 
 export const PHONE_MODELS: PhoneModel[] = [
+  // iPhone 17 系列 (最新款)
+  'iPhone 17 Pro Max',
+  'iPhone 17 Pro',
+  'iPhone 17 Air',
+  'iPhone 17',
+
   // iPhone 16 系列
   'iPhone 16 Pro Max',
   'iPhone 16 Pro',
